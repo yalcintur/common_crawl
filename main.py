@@ -60,8 +60,18 @@ def deduplicate(doc_hashes: List[DocHash]):
             yield doc_hash.url
 
 
-def main(args):
-    SOURCE_DIR = args.input_dir
+def list_jsonl_files(dir_path):
+    file_paths = []
+
+    for file_name in tqdm(os.listdir(dir_path), desc="Reading JSONL Files"):
+        if file_name.endswith(".json"):  ## Change this to .jsonl
+            file_path = os.path.join(dir_path, file_name)
+            file_paths.append(file_path)
+
+    return file_paths
+
+
+def main(args, file_paths):
     TARGET_DIR = args.output
     LINES_PER_FILE = args.lines_per_file
 
@@ -69,11 +79,9 @@ def main(args):
 
     docs_queue = Queue()
 
-    for file_name in tqdm(os.listdir(SOURCE_DIR), desc="Reading JSONL Files"):
-        if file_name.endswith(".json"):
-            file_path = os.path.join(SOURCE_DIR, file_name)
-            for doc in read_jsonl(file_path):
-                docs_queue.put(doc)
+    for file_path in file_paths:
+        for doc in read_jsonl(file_path):
+            docs_queue.put(doc)
 
     print(f"Total number of files: {docs_queue.qsize()}")
 
@@ -114,5 +122,13 @@ if __name__ == "__main__":
         print(f"Error downloading NLTK data: {e}")
 
     args = parse_args()
+    SOURCE_DIR = args.input_dir
 
-    main(args)
+    BATCH_COUNT = 4
+
+    file_paths = list_jsonl_files(SOURCE_DIR)
+
+    file_paths_batches = [file_paths[i::BATCH_COUNT] for i in range(BATCH_COUNT)]
+
+    for file_paths_batch in file_paths_batches:
+        main(args, file_paths_batch)

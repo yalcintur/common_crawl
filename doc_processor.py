@@ -30,14 +30,17 @@ class DocProcessor:
         with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
             results = []
 
+            progress = tqdm(total=self.docs_queue.qsize(), desc="Setting up processes")
+
             while not self.docs_queue.empty():
                 doc = self.docs_queue.get()
                 result = pool.apply_async(calculate_hash, args=(doc,))
                 results.append(result)
                 self.docs_queue.task_done()
+                progress.update(1)
 
             # Wait for all tasks to complete
-            for result in tqdm(results):
+            for result in tqdm(results, desc="Calculating Hashes"):
                 docHash = result.get()
 
                 docHashes.append(docHash)
