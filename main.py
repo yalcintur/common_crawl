@@ -64,7 +64,7 @@ def deduplicate(doc_hashes: List[DocHash]):
 def list_jsonl_files(dir_path):
     file_paths = []
 
-    for file_name in tqdm(os.listdir(dir_path), desc="Reading JSONL Files"):
+    for file_name in tqdm(os.listdir(dir_path), desc="Gathering JSONL Files"):
         if file_name.endswith(".json"):  ## Change this to .jsonl
             file_path = os.path.join(dir_path, file_name)
             file_paths.append(file_path)
@@ -81,38 +81,23 @@ def write_to_file(file_path, data):
     print(f"Saved {file_path} in {time.time() - start_time} seconds.")
 
 
-def main(args, file_paths):
-    TARGET_DIR = args.output
-    LINES_PER_FILE = args.lines_per_file
-
-    makedirsifnotexists(TARGET_DIR)
-
-    docs_queue = Queue()
-
-    for file_path in tqdm(file_paths):
-        for doc in read_jsonl(file_path):
-            docs_queue.put(doc)
-
-    print(f"Total number of files: {docs_queue.qsize()}")
-
-    doc_processor = DocProcessor(docs_queue)
-
-    doc_hashes = doc_processor.create_document_hashes()
-
+def deduplicate_doc_hashes(
+    doc_hashes: List[DocHash], lines_per_file: int, target_dir: str
+):
     temp = []
 
     for deduplicated_url in tqdm(deduplicate(doc_hashes)):
         if deduplicated_url is not None:
             temp.append(deduplicated_url)
 
-        if len(temp) >= LINES_PER_FILE:
+        if len(temp) >= lines_per_file:
             ## Write it line by line
 
             human_readable_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
             write_to_file(
                 os.path.join(
-                    TARGET_DIR, f"deduplicated_urls_{human_readable_time}.txt"
+                    target_dir, f"deduplicated_urls_{human_readable_time}.txt"
                 ),
                 temp,
             )
@@ -122,9 +107,63 @@ def main(args, file_paths):
     if len(temp) > 0:
         human_readable_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         write_to_file(
-            os.path.join(TARGET_DIR, f"deduplicated_urls_{human_readable_time}.txt"),
+            os.path.join(target_dir, f"deduplicated_urls_{human_readable_time}.txt"),
             temp,
         )
+
+
+def calculate_batch_doc_hashes(file_paths: List[str], lines_per_file: int):
+    docs_queue = Queue()
+
+    for file_path in tqdm(file_paths, desc="Reading JSONL Files"):
+        for doc in read_jsonl(file_path):
+            docs_queue.put(doc)
+
+    print(f"Total number of files: {docs_queue.qsize()}")
+
+    doc_processor = DocProcessor(docs_queue)
+
+    doc_hashes = doc_processor.create_document_hashes()
+
+    del docs_queue
+    del doc_processor
+
+    return doc_hashes
+
+
+def main(args):
+    TARGET_DIR = args.output
+    LINES_PER_FILE = args.lines_per_file
+    SOURCE_DIR = args.input_dir
+    BATCH_COUNT = 4
+
+    makedirsifnotexists(TARGET_DIR)
+
+    file_paths = list_jsonl_files(SOURCE_DIR)
+
+    filePathBacthQueue = Queue()
+
+    for i in range(BATCH_COUNT):
+        filePathBacthQueue.put(file_paths[i::BATCH_COUNT])
+
+    # Clean file_paths from memory
+    del file_paths
+
+    doc_hashes = []
+
+    for i in range(BATCH_COUNT):
+        print(f"Starting batch {i}")
+
+        doc_hashes.extend(
+            calculate_batch_doc_hashes(filePathBacthQueue.get(), LINES_PER_FILE)
+        )
+
+    # Clean filePathBacthQueue from memory
+    del filePathBacthQueue
+
+    print("All hashes calculated. Starting deduplication.")
+
+    deduplicate_doc_hashes(doc_hashes, LINES_PER_FILE, TARGET_DIR)
 
     print("Done.")
 
@@ -136,13 +175,5 @@ if __name__ == "__main__":
         print(f"Error downloading NLTK data: {e}")
 
     args = parse_args()
-    SOURCE_DIR = args.input_dir
 
-    BATCH_COUNT = 4
-
-    file_paths = list_jsonl_files(SOURCE_DIR)
-
-    file_paths_batches = [file_paths[i::BATCH_COUNT] for i in range(BATCH_COUNT)]
-
-    for file_paths_batch in file_paths_batches:
-        main(args, file_paths_batch)
+    main(args)
