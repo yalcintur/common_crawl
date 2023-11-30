@@ -3,6 +3,7 @@ import json
 import os
 from queue import Queue
 import nltk
+import time
 
 from tqdm import tqdm
 from datasketch import MinHashLSH
@@ -71,6 +72,15 @@ def list_jsonl_files(dir_path):
     return file_paths
 
 
+def write_to_file(file_path, data):
+    start_time = time.time()
+    with open(file_path, "w", encoding="utf-8") as f:
+        for url in data:
+            f.write(url + "\n")
+
+    print(f"Saved {file_path} in {time.time() - start_time} seconds.")
+
+
 def main(args, file_paths):
     TARGET_DIR = args.output
     LINES_PER_FILE = args.lines_per_file
@@ -79,7 +89,7 @@ def main(args, file_paths):
 
     docs_queue = Queue()
 
-    for file_path in file_paths:
+    for file_path in tqdm(file_paths):
         for doc in read_jsonl(file_path):
             docs_queue.put(doc)
 
@@ -100,17 +110,21 @@ def main(args, file_paths):
 
             human_readable_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
-            with open(
+            write_to_file(
                 os.path.join(
                     TARGET_DIR, f"deduplicated_urls_{human_readable_time}.txt"
                 ),
-                "w",
-                encoding="utf-8",
-            ) as f:
-                for url in temp:
-                    f.write(url + "\n")
+                temp,
+            )
 
             temp = []
+
+    if len(temp) > 0:
+        human_readable_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        write_to_file(
+            os.path.join(TARGET_DIR, f"deduplicated_urls_{human_readable_time}.txt"),
+            temp,
+        )
 
     print("Done.")
 
