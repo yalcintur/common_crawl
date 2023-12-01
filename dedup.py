@@ -121,9 +121,9 @@ def calculate_batch_doc_hashes(file_paths: List[str], lines_per_file: int):
 
     print(f"Total number of files: {docs_queue.qsize()}")
 
-    doc_processor = DocProcessor(docs_queue)
+    doc_processor = DocProcessor()
 
-    doc_hashes = doc_processor.create_document_hashes()
+    doc_hashes = doc_processor.create_document_hashes(docs_queue)
 
     del docs_queue
     del doc_processor

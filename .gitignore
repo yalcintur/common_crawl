@@ -162,3 +162,5 @@ cython_debug/
 # Custom
 dummy
 output
+dummy_txt
+dummy_parquet

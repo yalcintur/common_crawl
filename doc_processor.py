@@ -21,22 +21,19 @@ def calculate_hash(doc) -> DocHash:
 
 
 class DocProcessor:
-    def __init__(self, docs_queue):
-        self.docs_queue = docs_queue
-
-    def create_document_hashes(self):
+    def create_document_hashes(self, docs_queue):
         docHashes = []
 
         with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
             results = []
 
-            progress = tqdm(total=self.docs_queue.qsize(), desc="Setting up processes")
+            progress = tqdm(total=docs_queue.qsize(), desc="Setting up processes")
 
-            while not self.docs_queue.empty():
-                doc = self.docs_queue.get()
+            while not docs_queue.empty():
+                doc = docs_queue.get()
                 result = pool.apply_async(calculate_hash, args=(doc,))
                 results.append(result)
-                self.docs_queue.task_done()
+                docs_queue.task_done()
                 progress.update(1)
 
             # Wait for all tasks to complete
